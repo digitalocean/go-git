@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"regexp"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -17,6 +18,9 @@ import (
 var (
 	ErrSubmoduleAlreadyInitialized = errors.New("submodule already initialized")
 	ErrSubmoduleNotInitialized     = errors.New("submodule not initialized")
+
+	// gitSubmoduleSSHRegex matches a submodule repository that connects over ssh
+	gitSubmoduleSSHRegex = regexp.MustCompile(`^\"?(ssh://)?[A-Za-z_]+@[a-zA-Z0-9._-]+:[a-zA-Z0-9./._-]+\/.*\"?$`)
 )
 
 // Submodule a submodule allows you to keep another Git repository in a
@@ -133,29 +137,39 @@ func (s *Submodule) Repository() (*Repository, error) {
 		return nil, err
 	}
 
-	moduleURL, err := url.Parse(s.c.URL)
-	if err != nil {
-		return nil, err
-	}
+	var parsedURL string
+	if gitSubmoduleSSHRegex.MatchString(s.c.URL) {
+		// the url is using ssh, which will cause url.Parse to fail.
 
-	if !path.IsAbs(moduleURL.Path) {
-		remotes, err := s.w.r.Remotes()
+		// the url parsing below is to handle relative paths, which
+		// won't be necessary if a ssh url is provided.
+		parsedURL = s.c.URL
+	} else {
+		moduleURL, err := url.Parse(s.c.URL)
 		if err != nil {
 			return nil, err
 		}
 
-		rootURL, err := url.Parse(remotes[0].c.URLs[0])
-		if err != nil {
-			return nil, err
-		}
+		if !path.IsAbs(moduleURL.Path) {
+			remotes, err := s.w.r.Remotes()
+			if err != nil {
+				return nil, err
+			}
 
-		rootURL.Path = path.Join(rootURL.Path, moduleURL.Path)
-		*moduleURL = *rootURL
+			rootURL, err := url.Parse(remotes[0].c.URLs[0])
+			if err != nil {
+				return nil, err
+			}
+
+			rootURL.Path = path.Join(rootURL.Path, moduleURL.Path)
+			*moduleURL = *rootURL
+		}
+		parsedURL = moduleURL.String()
 	}
 
 	_, err = r.CreateRemote(&config.RemoteConfig{
 		Name: DefaultRemoteName,
-		URLs: []string{moduleURL.String()},
+		URLs: []string{parsedURL},
 	})
 
 	return r, err
