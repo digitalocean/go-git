@@ -20,7 +20,7 @@ var (
 	ErrSubmoduleNotInitialized     = errors.New("submodule not initialized")
 
 	// gitSubmoduleSSHRegex matches a submodule repository that connects over ssh
-	gitSubmoduleSSHRegex = regexp.MustCompile(`^\"?(ssh://)?[A-Za-z_]+@[a-zA-Z0-9._-]+:[a-zA-Z0-9./._-]+\/.*\"?$`)
+	gitSubmoduleSSHRegex = regexp.MustCompile(`^\"?(?:ssh|git@[-\w.]+):(\/\/)?(.*?)(\.git)\"?$`)
 )
 
 // Submodule a submodule allows you to keep another Git repository in a
